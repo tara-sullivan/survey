@@ -1,7 +1,9 @@
 import pandas as pd
+import numpy as np
 # import unittest
 
 from importlib import reload
+import decimal
 
 import os
 import inspect
@@ -11,49 +13,184 @@ try:
 except NameError:
     currpath = os.path.dirname(
         os.path.abspath(inspect.getfile(inspect.currentframe())))
-    rootdir = os.path.dirname(currpath)
-    srcdir = os.path.join(rootdir, 'src', 'survey')
+rootdir = os.path.dirname(currpath)
+srcdir = os.path.join(rootdir, 'src', 'survey')
 if rootdir not in sys.path:
     sys.path.append(rootdir)
 if srcdir not in sys.path:
     sys.path.append(srcdir)
 datapath = currpath + '\\data\\'
 
-from _variance import _se
-mymod = sys.modules['_variance']
-reload(mymod)
+# mymod = sys.modules['_descriptive_stats']
+# reload(mymod)
+# mymod = sys.modules['_agg']
+# reload(mymod)
+# mymod = sys.modules['_variance']
+# reload(mymod)
+from _variance import _se, _var
+from _descriptive_stats import _w_mean
 
-
-df = pd.read_stata(datapath + 'nhanes2b.dta')
+df = pd.read_stata(datapath + 'nhanes2brr.dta')
 df['diabetes_cat'] = df['diabetes'].astype('category')
+brrweight = list(df.columns[df.columns.str.contains('brr')])
 
 
-def stata_results_to_df(rows, row_names, col_names):
+#########
+# Count #
+#########
+
+def var_count_ser_nm():
     '''
-    Copy results from stat output into dataframe.
+    Check the variance for the count of:
+        * A series (one variable; col=None)
+        * Dropping missing values
+
+    Equivalent to: svy: tab diabetes, se count format (%12.0fc)
     '''
-    dfdata = []
-    for row in rows:
-        dfdata.append([int(i) for i in row.split()])
-    col_names = [
-        i if (i == 'Missing' or i == 'All')
-        else int(i) for i in col_names.split()]
-    row_names = [
-        i if (i == 'Missing' or i == 'All')
-        else int(i) for i in row_names.split()]
-    answer = pd.DataFrame(
-        data=dfdata,
-        columns=col_names,
-        index=row_names
+    answer = pd.Series([5478997928256, 54425552665], index=[0, 1])
+
+    _, brr_var = _var(
+        df, var='diabetes_cat', col=None, weight='finalwgt', missing=False,
+        brrweight=brrweight, mse=True)
+    myfunc = brr_var.drop(labels='All', axis=0)
+    pd.testing.assert_series_equal(
+        myfunc, answer,
+        check_index_type=False, check_dtype=False, check_names=False)
+
+
+def var_count_ser_m():
+    '''
+    Check the variance for the count of:
+        * A series (one variable; col=None)
+        * Treating missing values like other values
+
+    Equivalent to: svy: tab diabetes, se count format (%12.0fc)
+    '''
+    answer = pd.Series([2340726, 233293, 18693], index=[0, 1, 'Missing'])
+    _, brr_se = _se(
+        df, var='diabetes_cat', col=None, weight='finalwgt', missing=True,
+        brrweight=brrweight, mse=True)
+    brr_se.index = brr_se.index.fillna('Missing')
+    myfunc = round(brr_se, 0).drop(labels='All', axis=0)
+    pd.testing.assert_series_equal(
+        myfunc, answer,
+        check_index_type=False, check_dtype=False, check_names=False
     )
-    # Add row total
-    if 'All' not in answer.index:
-        answer.loc['All'] = answer.sum(numeric_only=True, axis=0)
-    # Add column total
-    if 'All' not in answer.columns:
-        answer.loc[:, 'All'] = answer.sum(numeric_only=True, axis=1)
-    return answer
+
+
+def var_count_df_nm():
+    '''
+    Check the variance for the count of:
+        * A dataframe (two variables; col is not None)
+        * Dropping missing values
+
+    Equivalent to: svy: tab diabetes race, se count format (%12.0f)
+    '''
+    answer = pd.DataFrame(
+        [
+            [2778220, 1388592, 1208984, 2340726],
+            [242168, 98415, 45493, 233293],
+            [2912056, 1458814, 1252160, np.nan]],
+        index=[0, 1, 'All'], columns=['White', 'Black', 'Other', 'All'])
+    _, brr_se = _se(
+        df, var=['diabetes_cat', 'race'], weight='finalwgt', missing=False,
+        brrweight=brrweight, mse=True)
+    brr_se.loc['All', 'All'] = np.nan
+    myfunc = round(brr_se, 0)
+    pd.testing.assert_frame_equal(
+        myfunc, answer,
+        check_index_type=False, check_names=False, check_dtype=False
+    )
+
+
+def var_count_df_m():
+    '''
+    Check the variance for the count of:
+        * A dataframe (two variables; col is not None)
+        * Dropping missing values
+
+    Equivalent to: svy: tab diabetes race, se count missing
+    '''
+    answer = pd.DataFrame(
+        [
+            [2778220, 1388592, 1208984, 2340726],
+            [242168, 98415, 45493, 233293],
+            [18693, 0, 0, 18693],
+            [2912042, 1458814, 1252160, np.nan]],
+        index=[0, 1, 'Missing', 'All'],
+        columns=['White', 'Black', 'Other', 'All']
+    )
+
+    _, brr_se = _se(
+        df, var=['diabetes_cat', 'race'], weight='finalwgt', missing=True,
+        brrweight=brrweight, mse=True)
+    brr_se.loc['All', 'All'] = np.nan
+    brr_se.index = brr_se.index.fillna('Missing')
+    myfunc = round(brr_se, 0).drop(columns='NA')
+    pd.testing.assert_frame_equal(
+        myfunc, answer,
+        check_index_type=False, check_dtype=False, check_names=False
+    )
+
+
+########
+# Mean #
+########
+
+def var_mean_nm():
+    '''
+    Check the variance for the count of:
+        * A series (one variable)
+    Equivalent to: svy: mean weight
+    '''
+    my_mean, my_se = _se(
+        df=df, var='weight', weight='finalwgt', brrweight=brrweight,
+        theta='mean')
+
+    ans_mean, ans_se = 71.90064, .1656454
+
+    round_num = abs(decimal.Decimal(str(ans_mean)).as_tuple().exponent)
+    assert round(my_mean, round_num) == ans_mean, '_mean not equal'
+    assert round(my_se, 5) == round(ans_se, 5), '_se not equal'
+
+
+def var_mean_m():
+    '''
+    Check the variance for the count of:
+        * A series (one variable)
+    Equivalent to: svy: mean weight
+    '''
+    my_mean, my_se = _se(
+        df=df, var='tgresult', weight='finalwgt', brrweight=brrweight,
+        theta='mean', missing=True)
+    ans_mean, ans_se = 138.576, 2.072962
+    assert round(my_mean, 3) == ans_mean, '_mean not equal'
+    assert round(my_se, 5) == round(ans_se, 5), '_se not equal'
+
+
+def var_mean_nm_over():
+    my_mean, my_se = _se(
+        df=df, var='tgresult', weight='finalwgt', theta='mean',
+        brrweight=brrweight, missing=False, over='diabetes_cat'
+    )
+    ans_mean = pd.Series([136.6997, 191.9708], index=[0, 1])
+    ans_se = pd.Series([2.095444, 6.337179], index=[0, 1])
+
+    pd.testing.assert_series_equal(
+        round(my_mean, 4), ans_mean,
+        check_index_type=False, check_names=False, check_categorical=False
+    )
+    pd.testing.assert_series_equal(
+        round(my_se, 3), round(ans_se, 3),
+        check_categorical=False, check_index_type=False, check_names=False
+    )
 
 
 if __name__ == '__main__':
-    pass
+    var_count_ser_nm()
+    var_count_ser_m()
+    var_count_df_nm()
+    var_count_df_m()
+    var_mean_nm()
+    var_mean_m()
+    var_mean_nm_over()

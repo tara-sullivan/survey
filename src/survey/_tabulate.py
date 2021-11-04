@@ -4,21 +4,6 @@ import numpy as np
 # from make_bps_df import bps_derived
 import tabulate as tab
 
-# import pdb
-
-# import os
-# import inspect
-# import sys
-# try:
-#     currpath = os.path.dirname(os.path.abspath(__file__))
-# except NameError:
-#     currpath = os.path.dirname(
-#         os.path.abspath(inspect.getfile(inspect.currentframe())))
-#     rootpath = os.path.dirname(os.path.dirname(currpath))
-#     datapath = rootpath + '\\tests\\data\\'
-
-# sys.path.append(rootpath)
-
 from _agg import _count
 
 print('Done')
@@ -26,7 +11,7 @@ print('Done')
 
 def tabulate(
     data, row, col=None, weight=None, *,
-    count=False, missing=False, aggfunc=np.sum,
+    count=False, missing=False,
     se=False,
     vce='brr', brrweight=None, mse=True,
     printtab=False, floatfmt=',.3f'

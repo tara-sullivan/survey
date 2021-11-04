@@ -11,8 +11,8 @@ try:
 except NameError:
     currpath = os.path.dirname(
         os.path.abspath(inspect.getfile(inspect.currentframe())))
-    rootdir = os.path.dirname(currpath)
-    srcdir = os.path.join(rootdir, 'src', 'survey')
+rootdir = os.path.dirname(currpath)
+srcdir = os.path.join(rootdir, 'src', 'survey')
 if rootdir not in sys.path:
     sys.path.append(rootdir)
 if srcdir not in sys.path:
@@ -37,10 +37,10 @@ def stata_results_to_df(rows, row_names, col_names):
         dfdata.append([int(i) for i in row.split()])
     col_names = [
         i if (i == 'Missing' or i == 'All')
-        else int(i) for i in col_names.split()]
+        else float(i) for i in col_names.split()]
     row_names = [
         i if (i == 'Missing' or i == 'All')
-        else int(i) for i in row_names.split()]
+        else float(i) for i in row_names.split()]
     answer = pd.DataFrame(
         data=dfdata,
         columns=col_names,
@@ -152,7 +152,7 @@ def df_nw_nm_sum():
     Equivalent to: tabulate diabetes lead
     '''
     myfunc = agg(
-        df=df, row='diabetes', col='lead', weight=None, missing=False)
+        df=df, row='diabetes_cat', col='lead', weight=None, missing=False)
     r1_str = (
         ' 1   10   23   67  114  173  240  325  334  382  407  342'
         ' 364  304  268  221  170  177  149  130   98   74   63   46'
@@ -193,10 +193,10 @@ def df_w_nm_sum():
         * nm: ignore missing (missing=False)
         * aggfunc = np.sum()
 
-    Equivalent to: svy: tabulate diabetes lead
+    Equivalent to: svy: tabulate diabetes_cat lead
     '''
     myfunc = agg(
-        df=df, row='diabetes', col='lead', weight='finalwgt', missing=False
+        df=df, row='diabetes_cat', col='lead', weight='finalwgt', missing=False
     )
     r1_str = (
         '  10331   109103   292763   895395  1390472  1963485  2745975  '
@@ -290,12 +290,12 @@ def df_nw_m_sum():
     answer = stata_results_to_df(
         rows=[r1_str, r2_str, r3_str], row_names=row_str, col_names=col_str)
     myfunc = agg(
-        df=df, row='diabetes', col='lead', weight=None, missing=True
+        df=df, row='diabetes_cat', col='lead', weight=None, missing=True
     )
     myfunc.index = myfunc.index.fillna('Missing')
     myfunc.columns = myfunc.columns.fillna('Missing')
     pd.testing.assert_frame_equal(
-        myfunc.fillna(0), answer, check_names=False,
+        myfunc.fillna(0), answer, check_names=False, check_like=True,
         check_dtype=False, check_index_type=False, check_column_type=False)
 
 
@@ -373,12 +373,12 @@ def df_w_m_sum():
         row_names=row_str, col_names=col_str)
 
     myfunc = agg(
-        df=df, row='diabetes', col='lead', weight='finalwgt', missing=True
+        df=df, row='diabetes_cat', col='lead', weight='finalwgt', missing=True
     )
     myfunc.index = myfunc.index.fillna('Missing')
     myfunc.columns = myfunc.columns.fillna('Missing')
     pd.testing.assert_frame_equal(
-        myfunc.fillna(0), answer, check_names=False,
+        myfunc.fillna(0), answer, check_names=False, check_like=True,
         check_dtype=False, check_index_type=False, check_column_type=False)
 
 

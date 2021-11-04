@@ -1,27 +1,29 @@
 import pandas as pd
 import numpy as np
 
-import os
-import inspect
-try:
-    currpath = os.path.dirname(os.path.abspath(__file__))
-except NameError:
-    currpath = os.path.dirname(
-        os.path.abspath(inspect.getfile(inspect.currentframe())))
-    rootpath = os.path.dirname(os.path.dirname(currpath))
-    datapath = rootpath + '\\tests\\data\\'
+import pdb
 
 from _agg import _count
 
+import _descriptive_stats
 
-def _se(df, row, col, weight, missing,
-        aggfunc=np.sum,
-        vce='brr', brrweight=None, mse=True,
-        floatfmt='{:,.0f}', printtab=False):
-    '''
-    Produces a dataframe with a point estimate and standard errors,
-    where standard errors are calculated using the BRR methods.
-    '''
+
+def _se(
+    df, var, weight, theta='count',
+    vce='brr', brrweight=None, mse=True, **kwargs
+):
+    theta_hat, brr_var = _var(
+        df=df, var=var, weight=weight, theta=theta,
+        vce=vce, brrweight=brrweight, mse=mse, **kwargs
+    )
+    brr_se = np.sqrt(brr_var)
+    return theta_hat, brr_se
+
+
+def _var(
+    df, var, weight, theta='count',
+    vce='brr', brrweight=None, mse=True, **kwargs
+):
 
     if vce == 'brr':
         if brrweight is not None:
@@ -35,41 +37,174 @@ def _se(df, row, col, weight, missing,
 
     # theta_hat is the vector of point estimates computed using sampling
     # weights for a given stratified survey design
-    theta_hat = _count(
-        df=df, row=row, col=col, weight=weight,
-        missing=missing, aggfunc=aggfunc)
-    # theta_hat_b is the vector of point estimates from the ith
-    # replication
-    theta_hat_b = _count(
-        df=df, row=row, col=col, weight=brrweight,
-        missing=missing, aggfunc=aggfunc)
-    theta_hat_b.columns.rename('brr', level=0, inplace=True)
+    # For total variables, we use the '_count' function
+    if theta == 'count':
+        if type(var) is list:
+            assert type(var) == list, 'Please pass var = [row, col]'
+            assert len(var) == 2, 'Please pass var = [row, col]'
+            row, col = var
+        else:
+            row, col = var, None
+        if 'missing' not in kwargs:
+            # default is to ignore missing
+            missing = False
+        else:
+            missing = kwargs['missing']
 
-    # broadcasting on columns breaks with np.nan as a name
-    if missing:
-        theta_hat_b.rename(columns={np.nan: 'NA'}, inplace=True)
-        theta_hat.rename(columns={np.nan: 'NA'}, inplace=True)
-        # to keep things easier, also rename index. But code should work
-        # if you only rename the columns
-        theta_hat_b.rename(index={np.nan: 'NA'}, inplace=True)
-        theta_hat.rename(index={np.nan: 'NA'}, inplace=True)
-        # Need to change fill_value in pd.DataFrame.sub from default None
-        # to 0 for variance to be correctly calculated.
-        fill_value = 0
-    else:
+        theta_hat = _count(
+            df=df, row=row, col=col, weight=weight,
+            missing=missing, margins=True)
+        # theta_hat_b is the vector of point estimates from the ith
+        # replication
+        theta_hat_b = _count(
+            df=df, row=row, col=col, weight=brrweight,
+            missing=missing, margins=True)
+
+        # broadcasting on columns breaks with np.nan as a name
+        if missing:
+            theta_hat_b.rename(columns={np.nan: 'NA'}, inplace=True)
+            if type(theta_hat) is pd.DataFrame:
+                theta_hat.rename(columns={np.nan: 'NA'}, inplace=True)
+            # to keep things easier, also rename index. But code should work
+            # if you only rename the columns
+            theta_hat_b.rename(index={np.nan: 'NA'}, inplace=True)
+            theta_hat.rename(index={np.nan: 'NA'}, inplace=True)
+            # Need to change fill_value in pd.DataFrame.sub from default None
+            # to 0 for variance to be correctly calculated.
+            # Note: need to check this; if this dataframe is a dataframe
+            # of brr values for a series, fill_value breaks sum
+            # fill_value = 0
+            fill_value = None
+        else:
+            fill_value = None
+    elif theta == 'mean':
+        # over can be used to calculate mean over different values
+        if 'over' not in kwargs:
+            # default is to calculate mean over the whole dataset:
+            over = None
+        else:
+            over = kwargs['over']
+        # missing treats missing like other values; really only relevant if
+        # calculating mean over something
+        if 'missing' not in kwargs:
+            # default is to ignore missing
+            missing = False
+        else:
+            missing = kwargs['missing']
+        theta_hat = _descriptive_stats._w_mean(
+            df=df, var=var, weight=weight,
+            over=over, missing=missing)
+        theta_hat_b = _descriptive_stats._w_mean(
+            df=df, var=var, weight=brrweight,
+            over=over, missing=missing)
         fill_value = None
+    # pdb.set_trace()
+    # Rename the brr values in theta_hat_b
+    # The BRR values will be series if calculating SE for a single point
+    # estimate (like for the mean of a variable)
+    if type(theta_hat_b) == pd.Series:
+        theta_hat_b.name = 'brr'
+    elif type(theta_hat_b) == pd.DataFrame:
+        # The BRR values will be the columns in a dataframe if calculating
+        # the value counts for a single variable, like in a one way tabulate
+        if theta_hat_b.columns.nlevels == 1:
+            theta_hat_b.columns.rename('brr', inplace=True)
+        # The BRR values will be the first level of columns in a dataframe
+        # with a two level column index if calculatingthe value counts for
+        # a singlevariable, like in a one way tabulate
+        elif theta_hat_b.columns.nlevels == 2:
+            theta_hat_b.columns.rename('brr', level=0, inplace=True)
 
     if mse:
-        brr_var = (
-            (theta_hat_b.sub(theta_hat, axis=0, fill_value=fill_value) ** 2)
-            .sum(axis='columns', level=1) / len(brrweight)
-        ).squeeze()
-        brr_var.name = 'Var'
+        # Calculate MSE (theta_hat - theta_hat_b)**2 for each BRR value
+        mse = theta_hat_b.sub(theta_hat, axis=0, fill_value=fill_value) ** 2
+        # Appropriate way to sum MSE depends on data type (similar to
+        # renaming BRR values above).
+        # MSE are a series if theta is a single point estimate; then BRR
+        # values are a series
+        if type(theta_hat_b) == pd.Series:
+            mse_sum = mse.sum()
+        elif type(theta_hat_b) == pd.DataFrame:
+            # MSE are a dataframe with a single level of columns if theta
+            # is a series, like in a one way tabulate
+            if theta_hat_b.columns.nlevels == 1:
+                mse_sum = mse.sum(axis=1)
+            # MSE are a dataframe with two levels of columns if theta is a
+            # dataframe, like in a twoway tabulates
+            else:
+                mse_sum = mse.sum(axis=1, level=1)
+        brr_var = (mse_sum / len(brrweight)).squeeze()
+        # If brr_var is a number if calculating a point estimate for a
+        # single variable. Otherwise it's a series or dataframe that
+        # should have a name
+        if not isinstance(brr_var, (int, float)):
+            brr_var.name = 'Var'
     else:
         print('Only have MSE capability')
         return
-    brr_se = np.sqrt(brr_var)
-    brr_se.name = 'SE'
+    return theta_hat, brr_var
+
+
+def _se_old(df, row, col, weight, missing,
+        theta='count',
+        vce='brr', brrweight=None, mse=True,
+        floatfmt='{:,.0f}', printtab=False):
+    '''
+    Produces a dataframe with a point estimate and standard errors,
+    where standard errors are calculated using the BRR methods.
+    '''
+
+    # if vce == 'brr':
+    #     if brrweight is not None:
+    #         pass
+    #     else:
+    #         print('Pass BRR weights')
+    #         return
+    # else:
+    #     print('Only have capability for vce=brr')
+    #     return
+
+    # # theta_hat is the vector of point estimates computed using sampling
+    # # weights for a given stratified survey design
+    # # For total variables, we use the '_count' function
+    # if theta == 'count':
+    #     theta_hat = _count(
+    #         df=df, row=row, col=col, weight=weight,
+    #         missing=missing)
+    #     # theta_hat_b is the vector of point estimates from the ith
+    #     # replication
+    #     theta_hat_b = _count(
+    #         df=df, row=row, col=col, weight=brrweight,
+    #         missing=missing)
+    # elif theta == 'mean':
+    #     pass
+    # theta_hat_b.columns.rename('brr', level=0, inplace=True)
+
+    # # broadcasting on columns breaks with np.nan as a name
+    # if missing:
+    #     theta_hat_b.rename(columns={np.nan: 'NA'}, inplace=True)
+    #     theta_hat.rename(columns={np.nan: 'NA'}, inplace=True)
+    #     # to keep things easier, also rename index. But code should work
+    #     # if you only rename the columns
+    #     theta_hat_b.rename(index={np.nan: 'NA'}, inplace=True)
+    #     theta_hat.rename(index={np.nan: 'NA'}, inplace=True)
+    #     # Need to change fill_value in pd.DataFrame.sub from default None
+    #     # to 0 for variance to be correctly calculated.
+    #     fill_value = 0
+    # else:
+    #     fill_value = None
+
+    # if mse:
+    #     brr_var = (
+    #         (theta_hat_b.sub(theta_hat, axis=0, fill_value=fill_value) ** 2)
+    #         .sum(axis='columns', level=1) / len(brrweight)
+    #     ).squeeze()
+    #     brr_var.name = 'Var'
+    # else:
+    #     print('Only have MSE capability')
+    #     return
+    # brr_se = np.sqrt(brr_var)
+    # brr_se.name = 'SE'
 
     # if missing:
     #     theta_hat_b.rename(columns={'Missing': np.nan}, inplace=True)
