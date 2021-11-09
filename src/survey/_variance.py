@@ -99,13 +99,21 @@ def _var(
 
         # broadcasting on columns breaks with np.nan as a name
         if missing:
+            # To rename things, you can try renaming as a dictionary
+            # Sometimes this runs into issues though; because in pandas,
+            # np.nan == np.nan returns False, so dictionary lookup may not
+            # work.
+            # pdb.set_trace()
             theta_hat_b.rename(columns={np.nan: 'NA'}, inplace=True)
             if type(theta_hat) is pd.DataFrame:
-                theta_hat.rename(columns={np.nan: 'NA'}, inplace=True)
+                # theta_hat.rename(columns={np.nan: 'NA'}, inplace=True)
+                theta_hat.columns = theta_hat.columns.fillna('NA')
             # to keep things easier, also rename index. But code should work
             # if you only rename the columns
-            theta_hat_b.rename(index={np.nan: 'NA'}, inplace=True)
-            theta_hat.rename(index={np.nan: 'NA'}, inplace=True)
+            theta_hat_b.index = theta_hat_b.index.fillna('NA')
+            theta_hat.index = theta_hat.index.fillna('NA')
+            # theta_hat.rename(index={np.nan: 'NA'}, inplace=True)
+            # theta_hat_b.rename(index={np.nan: 'NA'}, inplace=True)
             # Need to change fill_value in pd.DataFrame.sub from default None
             # to 0 for variance to be correctly calculated.
             # Note: need to check this; if this dataframe is a dataframe
