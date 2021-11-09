@@ -19,6 +19,7 @@ if rootdir not in sys.path:
     sys.path.append(rootdir)
 if srcdir not in sys.path:
     sys.path.append(srcdir)
+
 datapath = currpath + '\\data\\'
 
 # mymod = sys.modules['_descriptive_stats']
@@ -31,6 +32,8 @@ from _descriptive_stats import mean
 
 def def_test_mean():
     df = pd.read_stata(datapath + 'nmihs.dta')
+    mean(df=df, var='birthwgt', weight='finwgt',
+         show=True, float_fmt=',.3f')
     myfunc = mean(df=df, var='birthwgt', weight='finwgt')
     answer = 3355.452
     round_num = abs(decimal.Decimal(str(answer)).as_tuple().exponent)
@@ -46,7 +49,11 @@ def test_mean_over():
     df = pd.read_stata(datapath + 'nhanes2brr.dta')
     df['diabetes_cat'] = df['diabetes'].astype('category')
     # brrweight = list(df.columns[df.columns.str.contains('brr')])
-
+    mean(
+        df=df, var='tgresult', weight='finalwgt',
+        se=False, over='diabetes_cat', missing=True,
+        show=True, floatfmt=',.3f',
+        row_labels={0: 'No Diabetes', 1: 'Diabetes'})
     myfunc = mean(
         df=df, var='tgresult', weight='finalwgt',
         se=False, over='diabetes_cat', missing=True
@@ -66,6 +73,12 @@ def var_mean_nm_over():
     df['diabetes_cat'] = df['diabetes'].astype('category')
     brrweight = list(df.columns[df.columns.str.contains('brr')])
 
+    mean(
+        df=df, var='tgresult', weight='finalwgt', se=True,
+        brrweight=brrweight, missing=False, over='diabetes_cat',
+        show=True, floatfmt=',.3f',
+        row_labels={0: 'No Diabetes', 1: 'Diabetes'}
+    )
     my_mean, my_se = mean(
         df=df, var='tgresult', weight='finalwgt', se=True,
         brrweight=brrweight, missing=False, over='diabetes_cat'
@@ -81,7 +94,6 @@ def var_mean_nm_over():
         round(my_se, 3), round(ans_se, 3),
         check_categorical=False, check_index_type=False, check_names=False
     )
-
 
 
 if __name__ == '__main__':

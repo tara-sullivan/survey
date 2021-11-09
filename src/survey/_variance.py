@@ -24,6 +24,23 @@ def _var(
     df, var, weight, theta='count',
     vce='brr', brrweight=None, mse=True, **kwargs
 ):
+    '''
+    Calculate the variance of a dataframe using BRR errors.
+
+    Required:
+
+        * df:
+        * var:
+        * weight: survey weight
+        * vce: currently only allows 'brr'
+        * brrweight: vector of BRR weights
+        * mse: Calculate SE using MSE; currently only True
+
+    Optional:
+
+        * theta: point estimate to calculate variance for. Currently
+                 only possible for 'count'; 'mean'; and 'proportion'
+    '''
 
     if vce == 'brr':
         if brrweight is not None:
@@ -38,7 +55,7 @@ def _var(
     # theta_hat is the vector of point estimates computed using sampling
     # weights for a given stratified survey design
     # For total variables, we use the '_count' function
-    if theta == 'count':
+    if ((theta == 'count') | (theta == 'proportion')):
         if type(var) is list:
             assert type(var) == list, 'Please pass var = [row, col]'
             assert len(var) == 2, 'Please pass var = [row, col]'
@@ -56,9 +73,29 @@ def _var(
             missing=missing, margins=True)
         # theta_hat_b is the vector of point estimates from the ith
         # replication
+        # pdb.set_trace()
         theta_hat_b = _count(
             df=df, row=row, col=col, weight=brrweight,
             missing=missing, margins=True)
+        if theta == 'proportion':
+            # If doing a twoway tabulate, scale by total obs
+            if type(var) is list:
+                tot_idx = ('All', 'All')
+                tot_idx_b = ('All', pd.IndexSlice[:, 'All'])
+            else:
+                tot_idx = 'All'
+                tot_idx_b = 'All'
+            theta_hat_all = theta_hat.loc[tot_idx]
+            theta_hat = (theta_hat / theta_hat_all)
+
+            theta_hat_all_b = theta_hat_b.loc[tot_idx_b]
+            # if a twoway tabulate, drop the level to better broadcast
+            if col is not None:
+                theta_hat_all_b = theta_hat_b.loc[tot_idx_b].droplevel(col)
+                theta_hat_b = theta_hat_b.div(theta_hat_all_b, axis=1, level=0)
+            else:
+                theta_hat_all_b = theta_hat_b.loc[tot_idx_b]
+                theta_hat_b = (theta_hat_b / theta_hat_all_b)
 
         # broadcasting on columns breaks with np.nan as a name
         if missing:

@@ -133,6 +133,104 @@ def var_count_df_m():
     )
 
 
+##############
+# Proportion #
+##############
+
+def var_prop_ser_nm():
+    '''
+    Check the variance for the proportion of:
+        * A series (one variable; col=None)
+        * Dropping missing values
+
+    Equivalent to: svy: tab diabetes, se
+    '''
+    answer = pd.Series([0.0018, 0.0018], index=[0, 1])
+    _, brr_se = _se(
+        df, var='diabetes_cat', col=None, weight='finalwgt', missing=False,
+        brrweight=brrweight, mse=True, theta='proportion')
+    myfunc = brr_se.drop(labels='All', axis=0)
+    pd.testing.assert_series_equal(
+        round(myfunc, 4), answer,
+        check_index_type=False, check_names=False
+    )
+
+
+def var_prop_ser_m():
+    '''
+    Check the variance for the proportion of:
+        * A series (one variable; col=None)
+        * Treating missing values like other values
+
+    Equivalent to: svy: tab diabetes, se missing
+    '''
+    answer = pd.Series([0.001845, 0.001813, 0.000160], index=[0, 1, 'Missing'])
+    _, brr_se = _se(
+        df, var='diabetes_cat', col=None, weight='finalwgt', missing=True,
+        brrweight=brrweight, mse=True, theta='proportion')
+    brr_se.index = brr_se.index.fillna('Missing')
+    myfunc = round(brr_se, 6).drop(labels='All', axis=0)
+    pd.testing.assert_series_equal(
+        myfunc, answer,
+        check_index_type=False, check_names=False
+    )
+
+
+def var_prop_df_nm():
+    '''
+    Check the variance for the proportion of:
+        * A dataframe (two variables; col is not None)
+        * Dropping missing values
+
+    Equivalent to: svy: tab diabetes race, se format(%12.6fc)
+    '''
+    answer = pd.DataFrame(
+        [[0.015863, 0.012175, 0.010191, 0.001814],
+         [0.001932, 0.000847, 0.000387, 0.001814],
+         [0.016727, 0.012789, 0.010560, np.nan]],
+        index=[0, 1, 'All'],
+        columns=['White', 'Black', 'Other', 'All']
+    )
+    _, brr_se = _se(
+        df, var=['diabetes_cat', 'race'], weight='finalwgt', missing=False,
+        brrweight=brrweight, mse=True, count=False, theta='proportion')
+    brr_se.loc['All', 'All'] = np.nan
+    myfunc = round(brr_se, 6)
+    pd.testing.assert_frame_equal(
+        myfunc, answer,
+        check_index_type=False, check_names=False, check_dtype=False
+    )
+
+
+def var_proportion_df_m():
+    '''
+    Check the variance for the count of:
+        * A dataframe (two variables; col is not None)
+        * Dropping missing values
+
+    Equivalent to: svy: tab diabetes race, se missing format(%12.6fc)
+    '''
+    answer = pd.DataFrame(
+        [[0.015859, 0.012172, 0.010189, 0.001845],
+         [0.001931, 0.000846, 0.000387, 0.001813],
+         [0.000160, 0.000000, 0.000000, 0.000160],
+         [0.016724, 0.012786, 0.010558, np.nan]],
+        index=[0, 1, 'Missing', 'All'],
+        columns=['White', 'Black', 'Other', 'All']
+    )
+    _, brr_se = _se(
+        df, var=['diabetes_cat', 'race'], weight='finalwgt', missing=True,
+        brrweight=brrweight, mse=True, count=False, theta='proportion')
+    brr_se.loc['All', 'All'] = np.nan
+    brr_se.index = brr_se.index.fillna('Missing')
+    brr_se.drop('NA', axis=1, inplace=True)
+    myfunc = round(brr_se, 6)
+    pd.testing.assert_frame_equal(
+        myfunc, answer,
+        check_index_type=False, check_names=False, check_dtype=False
+    )
+
+
 ########
 # Mean #
 ########
@@ -191,6 +289,12 @@ if __name__ == '__main__':
     var_count_ser_m()
     var_count_df_nm()
     var_count_df_m()
+
+    var_prop_ser_nm()
+    var_prop_ser_m()
+    var_prop_df_nm()
+    var_proportion_df_m()
+
     var_mean_nm()
     var_mean_m()
     var_mean_nm_over()
