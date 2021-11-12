@@ -66,11 +66,11 @@ def var_count_ser_m():
 
     Equivalent to: svy: tab diabetes, se count format (%12.0fc)
     '''
-    answer = pd.Series([2340726, 233293, 18693], index=[0, 1, 'Missing'])
+    answer = pd.Series([2340726, 233293, 18693], index=[0, 1, 'NA'])
     _, brr_se = _se(
         df, var='diabetes_cat', col=None, weight='finalwgt', missing=True,
         brrweight=brrweight, mse=True)
-    brr_se.index = brr_se.index.fillna('Missing')
+    # brr_se.index = brr_se.index.fillna('Missing')
     myfunc = round(brr_se, 0).drop(labels='All', axis=0)
     pd.testing.assert_series_equal(
         myfunc, answer,
@@ -117,7 +117,7 @@ def var_count_df_m():
             [242168, 98415, 45493, 233293],
             [18693, 0, 0, 18693],
             [2912042, 1458814, 1252160, np.nan]],
-        index=[0, 1, 'Missing', 'All'],
+        index=[0, 1, 'NA', 'All'],
         columns=['White', 'Black', 'Other', 'All']
     )
 
@@ -125,7 +125,7 @@ def var_count_df_m():
         df, var=['diabetes_cat', 'race'], weight='finalwgt', missing=True,
         brrweight=brrweight, mse=True)
     brr_se.loc['All', 'All'] = np.nan
-    brr_se.index = brr_se.index.fillna('Missing')
+    # brr_se.index = brr_se.index.fillna('Missing')
     myfunc = round(brr_se, 0).drop(columns='NA')
     pd.testing.assert_frame_equal(
         myfunc, answer,
@@ -164,11 +164,11 @@ def var_prop_ser_m():
 
     Equivalent to: svy: tab diabetes, se missing
     '''
-    answer = pd.Series([0.001845, 0.001813, 0.000160], index=[0, 1, 'Missing'])
+    answer = pd.Series([0.001845, 0.001813, 0.000160], index=[0, 1, 'NA'])
     _, brr_se = _se(
         df, var='diabetes_cat', col=None, weight='finalwgt', missing=True,
         brrweight=brrweight, mse=True, theta='proportion')
-    brr_se.index = brr_se.index.fillna('Missing')
+    # brr_se.index = brr_se.index.fillna('Missing')
     myfunc = round(brr_se, 6).drop(labels='All', axis=0)
     pd.testing.assert_series_equal(
         myfunc, answer,
@@ -215,14 +215,14 @@ def var_proportion_df_m():
          [0.001931, 0.000846, 0.000387, 0.001813],
          [0.000160, 0.000000, 0.000000, 0.000160],
          [0.016724, 0.012786, 0.010558, np.nan]],
-        index=[0, 1, 'Missing', 'All'],
+        index=[0, 1, 'NA', 'All'],
         columns=['White', 'Black', 'Other', 'All']
     )
     _, brr_se = _se(
         df, var=['diabetes_cat', 'race'], weight='finalwgt', missing=True,
         brrweight=brrweight, mse=True, count=False, theta='proportion')
     brr_se.loc['All', 'All'] = np.nan
-    brr_se.index = brr_se.index.fillna('Missing')
+    # brr_se.index = brr_se.index.fillna('Missing')
     brr_se.drop('NA', axis=1, inplace=True)
     myfunc = round(brr_se, 6)
     pd.testing.assert_frame_equal(

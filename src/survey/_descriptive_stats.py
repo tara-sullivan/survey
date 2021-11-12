@@ -122,7 +122,7 @@ def _calc_w_mean(var, weight):
     # see [SVY] - svy estimation - Remarks and Examples
     var_notna = var.dropna()
     weight_notna = weight.loc[var_notna.index]
-    y_bar = var_notna.dot(weight_notna) / (weight_notna.sum())
+    y_bar = var_notna.dot(weight_notna.fillna(0)) / (weight_notna.sum())
     return y_bar
 
 
