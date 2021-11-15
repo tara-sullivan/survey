@@ -39,7 +39,10 @@ def _var(
     Optional:
 
         * theta: point estimate to calculate variance for. Currently
-                 only possible for 'count'; 'mean'; and 'proportion'
+                 possible for:
+                 - 'count' and 'proportion'
+                 - 'mean'; 'std' [variables derived from the statsmodel
+                    DescrStatsW class]
     '''
 
     if vce == 'brr':
@@ -122,7 +125,7 @@ def _var(
             fill_value = None
         else:
             fill_value = None
-    elif theta == 'mean':
+    elif ((theta == 'mean') | (theta == 'std')):
         # over can be used to calculate mean over different values
         if 'over' not in kwargs:
             # default is to calculate mean over the whole dataset:
@@ -136,10 +139,17 @@ def _var(
             missing = False
         else:
             missing = kwargs['missing']
-        theta_hat = _descriptive_stats._w_mean(
+        # Use the appropriate function
+        func_dict = {
+            'mean': _descriptive_stats._w_mean,
+            'std': _descriptive_stats._w_std,
+        }
+        stat_func = func_dict[theta]
+        theta_hat = stat_func(
             df=df, var=var, weight=weight,
             over=over, missing=missing)
-        theta_hat_b = _descriptive_stats._w_mean(
+        # pdb.set_trace()
+        theta_hat_b = stat_func(
             df=df, var=var, weight=brrweight,
             over=over, missing=missing)
         fill_value = None
@@ -162,6 +172,7 @@ def _var(
 
     if mse:
         # Calculate MSE (theta_hat - theta_hat_b)**2 for each BRR value
+        # pdb.set_trace()
         mse = theta_hat_b.sub(theta_hat, axis=0, fill_value=fill_value) ** 2
         # Appropriate way to sum MSE depends on data type (similar to
         # renaming BRR values above).
@@ -181,8 +192,13 @@ def _var(
         brr_var = (mse_sum / len(brrweight)).squeeze()
         # If brr_var is a number if calculating a point estimate for a
         # single variable. Otherwise it's a series or dataframe that
-        # should have a name
+        # should have a name, or an np.array that should be converted to
+        # a series or dataframe
         if not isinstance(brr_var, (int, float)):
+            # convert to pandas if numpy array
+            if isinstance(brr_var, np.ndarray):
+                if brr_var.ndim == 1:
+                    brr_var = pd.Series(brr_var)
             brr_var.name = 'Var'
     else:
         print('Only have MSE capability')

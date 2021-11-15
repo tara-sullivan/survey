@@ -249,7 +249,7 @@ def var_mean_nm():
 
     round_num = abs(decimal.Decimal(str(ans_mean)).as_tuple().exponent)
     assert round(my_mean, round_num) == ans_mean, '_mean not equal'
-    assert round(my_se, 5) == round(ans_se, 5), '_se not equal'
+    assert round(my_se, 6) == round(ans_se, 6), '_se not equal'
 
 
 def var_mean_m():
