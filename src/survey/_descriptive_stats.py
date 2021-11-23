@@ -253,6 +253,115 @@ def _w_std(df, var, weight, over=None, missing=False):
     return y_bar
 
 
+#####################
+# Weighted quantile #
+#####################
+
+def quantile(df, var, weight, probs=0.5, over=None, missing=False,
+             se=False, brrweight=None
+             ):
+    '''
+    Calculate the quantile of a variable, using sample weights.
+    Returns either (1) a point estimate or table of quantile; or
+    (2) quantile and standard errors for those estimates
+
+    Required:
+
+        * df:     sample dataframe
+        * var:    variable to caluclate mean for
+        * weight: weight variable
+
+    Optional:
+
+        * probs:   probability point at which to calculate quantile
+        * over:    subpopulation to caluclate mean over
+        * missing: treat missing like other values; only relevant if
+                   calculating the mean of var1 over values of var2, and var2
+                   contains missing values.
+        * se:      whether to return standard errors.
+        * brrweight: if calculating standard errors using BRR weights, supply
+                     weights here.
+    '''
+    # if printing, collect printing kwargs:
+
+    if not se:
+        y_bar = _w_quantile(
+            df=df, var=var, weight=weight, probs=probs,
+            over=over, missing=missing)
+        return y_bar
+    else:
+        y_bar, y_se = _variance._se(
+            df=df, var=var, weight=weight, theta='quantile', probs=probs,
+            brrweight=brrweight, missing=missing, over=over)
+        return y_bar, y_se
+
+
+def _calc_w_quantile(var, weight, probs):
+    '''
+    Compute quantile for weighted sample.
+
+    Note that for the DescrStatsW method quantile, probs can be a single
+    probability (i.e. .5) or a list of probabilities ([.25, .5, .75]).
+
+    This method either returns a numpy array or a pandas series or DF; I
+    have return_pandas set to true.
+    '''
+    # eliminate obs where df[var].isna(); otherwise .dot will produce nan
+    # also fill the missing weight with nan for the same reaon.
+    # Note that this could produce issues when calculating standard errors;
+    # see [SVY] - svy estimation - Remarks and Examples
+    var_notna = var.dropna()
+    weight_notna = weight.loc[var_notna.index]
+    svy_class = DescrStatsW(data=var_notna,
+                            weights=weight_notna.fillna(0),
+                            ddof=1)
+    return svy_class.quantile(probs, return_pandas=True)
+
+
+def _w_quantile(df, var, weight, probs, over=None, missing=False):
+    if over is not None:
+        # Write a function I can apply to the group (i.e. the dataframe
+        # produced by groupby).
+        def _group_w_quantile(group):
+            # Cannot pass a group of weights to DescrStatsW and execute
+            # quantile methods for each weight; do in a list and append
+            if isinstance(weight, list):
+                quantile_list = []
+                for w in weight:
+                    w_quantile = _calc_w_quantile(group[var], group[w], probs)
+                    quantile_list.append(w_quantile)
+
+                # returns a dataframe with brrweight as columns, prob as index
+                w_quantile_ans = pd.concat(quantile_list, axis=1, keys=weight)
+            else:
+                w_quantile_ans = _calc_w_quantile(
+                    group[var], group[weight], probs)
+            return w_quantile_ans
+        y_bar = _apply_group_func(
+            df=df, group_var=over, var=var, weight=weight,
+            func=_group_w_quantile, missing=missing)
+        # when calculating variance for this estimate, we want the probs to be
+        # one level of the index; since over != None, we want a multiindex, w/
+        # level 1 = over variable, and level2 = p (the quantile prob). Then the
+        # estimate for each of the BRR weights will be in the columns. If using
+        # one weight, muliple p, you end up with a dataframe with p in the
+        # columns; hence the stack.
+        if y_bar.columns.name == 'p':
+            y_bar = y_bar.stack('p')
+    else:
+        if isinstance(weight, list):
+            quantile_list = []
+            for w in weight:
+                w_quantile = _calc_w_quantile(df[var], df[w], probs)
+                quantile_list.append(w_quantile)
+            # returns a dataframe, columns = weights, index=probs
+            w_quantile_ans = pd.concat(quantile_list, axis=1, keys=weight)
+        else:
+            w_quantile_ans = _calc_w_quantile(df[var], df[weight], probs)
+        y_bar = w_quantile_ans
+    return y_bar
+
+
 def _fmt_var(var, fmt):
     # newvar = var.copy()
     if isinstance(var, (float, int)):

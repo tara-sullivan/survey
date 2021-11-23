@@ -41,7 +41,8 @@ def _var(
         * theta: point estimate to calculate variance for. Currently
                  possible for:
                  - 'count' and 'proportion'
-                 - 'mean'; 'std' [variables derived from the statsmodel
+                 - 'mean'; 'std'; 'quantile';
+                    [variables derived from the statsmodel
                     DescrStatsW class]
     '''
 
@@ -143,6 +144,7 @@ def _var(
         func_dict = {
             'mean': _descriptive_stats._w_mean,
             'std': _descriptive_stats._w_std,
+            'quantile': _descriptive_stats._w_quantile
         }
         stat_func = func_dict[theta]
         theta_hat = stat_func(
@@ -152,6 +154,38 @@ def _var(
         theta_hat_b = stat_func(
             df=df, var=var, weight=brrweight,
             over=over, missing=missing)
+        fill_value = None
+    elif (theta == 'quantile'):
+        # over can be used to calculate mean over different values
+        if 'over' not in kwargs:
+            # default is to calculate mean over the whole dataset:
+            over = None
+        else:
+            over = kwargs['over']
+        # missing treats missing like other values; really only relevant if
+        # calculating mean over something
+        if 'missing' not in kwargs:
+            # default is to ignore missing
+            missing = False
+        else:
+            missing = kwargs['missing']
+        if 'probs' not in kwargs:
+            print('Please pass probs for quantile function.')
+            return
+        else:
+            probs = kwargs['probs']
+        # Use the appropriate function
+        func_dict = {
+            'quantile': _descriptive_stats._w_quantile
+        }
+        stat_func = func_dict[theta]
+        theta_hat = stat_func(
+            df=df, var=var, weight=weight,
+            over=over, missing=missing, probs=probs)
+        # pdb.set_trace()
+        theta_hat_b = stat_func(
+            df=df, var=var, weight=brrweight,
+            over=over, missing=missing, probs=probs)
         fill_value = None
     # pdb.set_trace()
     # Rename the brr values in theta_hat_b

@@ -42,6 +42,7 @@ def tabulate(
         * floatfmt: float format. Default = ',.2f'
         * col_labels: dictionary to map values of column labels
         * row_labels: dictionary to map values of row labels
+        * tablefmt: print tablefmt in tabulate
     '''
     # if printing, collect printing kwargs:
     if show:
@@ -63,6 +64,10 @@ def tabulate(
             row_labels = pkwargs['row_labels']
             row_labels = {k: textwrap.fill(v, 40)
                           for k, v in row_labels.items()}
+        if 'tablefmt' not in pkwargs:
+            tablefmt = 'psql'
+        else:
+            tablefmt = pkwargs['tablefmt']
 
     df = df.copy()
 
@@ -148,7 +153,7 @@ def tabulate(
                 #         + returntab_se.map(f'({{:{floatfmt}}})'.format))                    
             newtab.index = newtab.index.to_series().replace(row_labels)
             newtab.rename(columns=col_labels, inplace=True)
-        _prettyprint(newtab, floatfmt=floatfmt)
+        _prettyprint(newtab, floatfmt=floatfmt, tablefmt=tablefmt)
     else:
         if se:
             return returntab, n_hat_se
@@ -196,11 +201,11 @@ def tabulate(
     # return returntab
 
 
-def _prettyprint(tab, headers='keys', floatfmt='.2f'):
+def _prettyprint(tab, headers='keys', floatfmt='.2f', tablefmt='psql'):
     # pdb.set_trace()
     print(prettytab(
         tab,
-        headers=headers, tablefmt='psql',
+        headers=headers, tablefmt=tablefmt,
         numalign='right', floatfmt=floatfmt))
 
 

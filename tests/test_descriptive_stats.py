@@ -29,8 +29,8 @@ datapath = currpath + '\\data\\'
 # mymod = sys.modules['_agg']
 # reload(mymod)
 # reload(sys.modules['_variance'])
-from _agg import _apply_group_func
-from _descriptive_stats import mean, std
+# from _agg import _apply_group_func
+from _descriptive_stats import mean, std, quantile
 
 
 def def_test_mean():
@@ -163,6 +163,70 @@ def var_std_nm_over():
     # )
 
 
+def quantile_tests():
+    # do not have point estimates for comparison for quantile test, so
+    # currently only checking that everything runs.
+    df = pd.read_stata(datapath + 'nhanes2brr.dta')
+    df['diabetes_cat'] = df['diabetes'].astype('category')
+    brrweight = list(df.columns[df.columns.str.contains('brr')])
+    # Single probability point
+    myfunc = quantile(
+        df=df, var='tgresult', weight='finalwgt', probs=0.5
+    )
+    # print(myfunc)
+
+    # Multiple-probability points
+    myfunc = quantile(
+        df=df, var='tgresult', weight='finalwgt', probs=[0.25, 0.5]
+    )
+    # print(myfunc)
+
+    # Single probability point
+    myfunc = quantile(
+        df=df, var='tgresult', weight='finalwgt', probs=0.5,
+        over='diabetes_cat'
+    )
+    # print(myfunc)
+
+    # Multiple-probability points
+    myfunc = quantile(
+        df=df, var='tgresult', weight='finalwgt', probs=[0.25, 0.5],
+        over='diabetes_cat'
+    )
+    # print(myfunc)
+
+    ###############
+    # Calculate SE
+
+    # Single probability point
+    myfunc = quantile(
+        df=df, var='tgresult', weight='finalwgt', probs=0.5,
+        se=True, brrweight=brrweight
+    )
+    # print(myfunc)
+
+    # Multiple-probability points
+    myfunc = quantile(
+        df=df, var='tgresult', weight='finalwgt', probs=[0.25, 0.5],
+        se=True, brrweight=brrweight
+    )
+    # print(myfunc)
+
+    # Single probability point
+    myfunc = quantile(
+        df=df, var='tgresult', weight='finalwgt', probs=0.5,
+        over='diabetes_cat', se=True, brrweight=brrweight
+    )
+    # print(myfunc)
+
+    # Multiple-probability points
+    myfunc = quantile(
+        df=df, var='tgresult', weight='finalwgt', probs=[0.25, 0.5],
+        over='diabetes_cat', se=True, brrweight=brrweight
+    )
+    # print(myfunc)
+
+
 if __name__ == '__main__':
     def_test_mean()
     test_mean_over()
@@ -171,3 +235,5 @@ if __name__ == '__main__':
     def_test_std()
     test_std_over()
     var_std_nm_over()
+
+    quantile_tests()
